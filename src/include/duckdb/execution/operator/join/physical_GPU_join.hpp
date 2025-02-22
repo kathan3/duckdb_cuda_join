@@ -14,7 +14,7 @@ struct KathanJoinProjectionColumns {
 
 class PhysicalKathanJoin : public PhysicalComparisonJoin {
 public:
-	static constexpr const PhysicalOperatorType TYPE = PhysicalOperatorType::KATHAN_JOIN;
+	static constexpr const PhysicalOperatorType TYPE = PhysicalOperatorType::GPU_JOIN;
 
 public:
 	PhysicalKathanJoin(
@@ -65,6 +65,9 @@ public:
 protected:
 	OperatorResultType ExecuteInternal(ExecutionContext &context, DataChunk &input, DataChunk &chunk,
 	                                   GlobalOperatorState &gstate, OperatorState &state) const override;
+private:
+	
+	vector<idx_t> build_key_indices;
 
 public:
 	// Example of how you might set up a hashtable initializer, similar to HashJoin

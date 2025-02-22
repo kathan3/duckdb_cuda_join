@@ -38,6 +38,7 @@ PhysicalHashJoin::PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOpera
       delim_types(std::move(delim_types)) {
 
 	filter_pushdown = std::move(pushdown_info_p);
+	printf("PhysicalHashJoin::PhysicalHashJoin\n");
 
 	children.push_back(std::move(left));
 	children.push_back(std::move(right));
@@ -70,9 +71,81 @@ PhysicalHashJoin::PhysicalHashJoin(LogicalOperator &op, unique_ptr<PhysicalOpera
 
 	// For ANTI, SEMI and MARK join, we only need to store the keys, so for these the payload/RHS types are empty
 	if (join_type == JoinType::ANTI || join_type == JoinType::SEMI || join_type == JoinType::MARK) {
+		// Print the join type
+		switch (join_type) {
+		case JoinType::INNER:
+			printf("Join Type: INNER\n");
+			break;
+		case JoinType::LEFT:
+			printf("Join Type: LEFT\n");
+			break;
+		case JoinType::RIGHT:
+			printf("Join Type: RIGHT\n");
+			break;
+		case JoinType::OUTER:
+			printf("Join Type: OUTER\n");
+			break;
+		case JoinType::SEMI:
+			printf("Join Type: SEMI\n");
+			break;
+		case JoinType::ANTI:
+			printf("Join Type: ANTI\n");
+			break;
+		case JoinType::MARK:
+			printf("Join Type: MARK\n");
+			break;
+		case JoinType::SINGLE:
+			printf("Join Type: SINGLE\n");
+			break;
+		case JoinType::RIGHT_SEMI:
+			printf("Join Type: RIGHT_SEMI\n");
+			break;
+		case JoinType::RIGHT_ANTI:
+			printf("Join Type: RIGHT_ANTI\n");
+			break;
+		default:
+			printf("Join Type: UNKNOWN\n");
+			break;
+		}
 		return;
 	}
-
+	// Print the join type
+	switch (join_type) {
+		case JoinType::INNER:
+			printf("Join Type: INNER\n");
+			break;
+		case JoinType::LEFT:
+			printf("Join Type: LEFT\n");
+			break;
+		case JoinType::RIGHT:
+			printf("Join Type: RIGHT\n");
+			break;
+		case JoinType::OUTER:
+			printf("Join Type: OUTER\n");
+			break;
+		case JoinType::SEMI:
+			printf("Join Type: SEMI\n");
+			break;
+		case JoinType::ANTI:
+			printf("Join Type: ANTI\n");
+			break;
+		case JoinType::MARK:
+			printf("Join Type: MARK\n");
+			break;
+		case JoinType::SINGLE:
+			printf("Join Type: SINGLE\n");
+			break;
+		case JoinType::RIGHT_SEMI:
+			printf("Join Type: RIGHT_SEMI\n");
+			break;
+		case JoinType::RIGHT_ANTI:
+			printf("Join Type: RIGHT_ANTI\n");
+			break;
+		default:
+			printf("Join Type: UNKNOWN\n");
+			break;
+		}
+	
 	auto &rhs_input_types = children[1]->GetTypes();
 
 	// Create a projection map for the RHS (if it was empty), for convenience

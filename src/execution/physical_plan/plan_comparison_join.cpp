@@ -5,7 +5,7 @@
 #include "duckdb/execution/operator/join/physical_hash_join.hpp"
 #include "duckdb/execution/operator/join/physical_iejoin.hpp"
 #include "duckdb/execution/operator/join/physical_nested_loop_join.hpp"
-#include "duckdb/execution/operator/join/physical_kathan_join.hpp" //added this
+#include "duckdb/execution/operator/join/physical_GPU_join.hpp" //added this
 #include "duckdb/execution/operator/join/physical_piecewise_merge_join.hpp"
 #include "duckdb/execution/operator/scan/physical_table_scan.hpp"
 #include "duckdb/execution/physical_plan_generator.hpp"
@@ -65,112 +65,80 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::PlanComparisonJoin(LogicalCo
 
 	unique_ptr<PhysicalOperator> plan;
 
-		// At this point, we know which operators are logically feasible:
-		// - HashJoin if has_equality && !prefer_range_joins
-		// - IEJoin if can_iejoin
-		// - Piecewise Merge Join if can_merge
-		// - NestedLoop or BlockwiseNL based on conditions otherwise
-		// - KathanJoin (our new operator) - Let's assume it's always feasible for demonstration,
-		//   or you can add your own feasibility checks.
-
-
 	    //Define some simple c//ost estimation functions:
 		auto EstimateHashJoinCost = [&](idx_t left_card, idx_t right_card) {
 			// For demo: hash join cost ~ sum of sizes
-			return 0;
-		};
-		auto EstimateIEJoinCost = [&](idx_t left_card, idx_t right_card) {
-			// For demo: IEJoin cost ~ left_card * log(right_card)
-			return (double)left_card * std::log((double)right_card + 1);
-		};
-		auto EstimatePiecewiseMergeJoinCost = [&](idx_t left_card, idx_t right_card) {
-			// For demo: piecewise merge join ~ (left_card + right_card) * log(left_card + right_card)
-			double total = (double)left_card + (double)right_card;
-			return total * std::log(total + 1);
-		};
-		auto EstimateNestedLoopCost = [&](idx_t left_card, idx_t right_card) {
-			// Nested loop join ~ left_card * right_card
-			return (double)left_card * (double)right_card;
-		};
-		auto EstimateBlockwiseNLCost = [&](idx_t left_card, idx_t right_card) {
-			// Blockwise NL slightly better than naive nested loop
-			return (double)left_card * (double)right_card * 0.8; // just a demo factor
+			return 1000;
 		};
 		auto EstimateKathanJoinCost = [&](idx_t left_card, idx_t right_card) {
 			// KathanJoin: for testing, let's say it's 0.
-			return 1000;
+			return 0;
 		};
 
 		// Initialize costs to infinity
 		double hash_join_cost = std::numeric_limits<double>::infinity();
-		double ie_join_cost = std::numeric_limits<double>::infinity();
-		double piecewise_merge_cost = std::numeric_limits<double>::infinity();
-		double nested_loop_cost = std::numeric_limits<double>::infinity();
-		double blockwise_cost = std::numeric_limits<double>::infinity();
 		double kathan_join_cost = std::numeric_limits<double>::infinity();
 
 		// Check feasibility and assign costs
 		if (has_equality && !prefer_range_joins) {
 			hash_join_cost = EstimateHashJoinCost(lhs_cardinality, rhs_cardinality);
 			kathan_join_cost = EstimateKathanJoinCost(lhs_cardinality, rhs_cardinality);
+		} 
+
+		if (has_equality && !prefer_range_joins) {
+		// Equality join with small number of keys : possible perfect join optimization
+			 // Check if we should consider KathanJoin
+			 bool use_kathan_join = (op.join_type == JoinType::INNER && op.conditions.size() == 1);
+
+			 // Determine the minimum cost operator only if KathanJoin is valid
+			 double min_cost = use_kathan_join ? std::min(hash_join_cost, kathan_join_cost) : hash_join_cost;
+		 
+			 // Create the chosen operator
+			 if (use_kathan_join && min_cost == kathan_join_cost) {
+				 // Use PhysicalKathanJoin
+				 plan = make_uniq<PhysicalKathanJoin>(
+					 op, std::move(left), std::move(right), std::move(op.conditions), op.join_type, op.left_projection_map,
+					 op.right_projection_map, op.estimated_cardinality);
+			 } else {
+				 // Use Hash Join for all other cases
+				 plan = make_uniq<PhysicalHashJoin>(
+					 op, std::move(left), std::move(right), std::move(op.conditions), op.join_type, op.left_projection_map,
+					 op.right_projection_map, std::move(op.mark_types), op.estimated_cardinality, std::move(op.filter_pushdown));
+			 }
+	} else {
+		D_ASSERT(op.left_projection_map.empty());
+		if (left->estimated_cardinality <= client_config.nested_loop_join_threshold ||
+		    right->estimated_cardinality <= client_config.nested_loop_join_threshold) {
+			can_iejoin = false;
+			can_merge = false;
+		}
+		if (can_merge && can_iejoin) {
+			if (left->estimated_cardinality <= client_config.merge_join_threshold ||
+			    right->estimated_cardinality <= client_config.merge_join_threshold) {
+				can_iejoin = false;
+			}
 		}
 		if (can_iejoin) {
-			ie_join_cost = EstimateIEJoinCost(lhs_cardinality, rhs_cardinality);
-		}
-		if (can_merge && !can_iejoin) {
-			// If can_merge is true but we didn't pick IEJoin, we can try piecewise merge join
-			piecewise_merge_cost = EstimatePiecewiseMergeJoinCost(lhs_cardinality, rhs_cardinality);
-		}
-
-		// If none of the above conditions matched for a specialized join,
-		// We consider nested loop or blockwise NL join.
-		// Check if conditions are supported by nested loop join:
-		bool can_nested_loop = PhysicalNestedLoopJoin::IsSupported(op.conditions, op.join_type);
-		if (can_nested_loop) {
-			nested_loop_cost = EstimateNestedLoopCost(lhs_cardinality, rhs_cardinality);
+			plan = make_uniq<PhysicalIEJoin>(op, std::move(left), std::move(right), std::move(op.conditions),
+			                                 op.join_type, op.estimated_cardinality);
+		} else if (can_merge) {
+			// range join: use piecewise merge join
+			plan =
+			    make_uniq<PhysicalPiecewiseMergeJoin>(op, std::move(left), std::move(right), std::move(op.conditions),
+			                                          op.join_type, op.estimated_cardinality);
+		} else if (PhysicalNestedLoopJoin::IsSupported(op.conditions, op.join_type)) {
+			// inequality join: use nested loop
+			plan = make_uniq<PhysicalNestedLoopJoin>(op, std::move(left), std::move(right), std::move(op.conditions),
+			                                         op.join_type, op.estimated_cardinality);
 		} else {
-			// If nested loop is not directly supported, fallback to blockwise NL
-			// We need to rewrite conditions for blockwise NL:
 			for (auto &cond : op.conditions) {
 				RewriteJoinCondition(*cond.right, left->types.size());
 			}
-			blockwise_cost = EstimateBlockwiseNLCost(lhs_cardinality, rhs_cardinality);
-		}
-
-
-			// Now pick the operator with the lowest cost
-		double min_cost = std::min(
-			{hash_join_cost, ie_join_cost, piecewise_merge_cost, nested_loop_cost, blockwise_cost, kathan_join_cost});
-
-		// Create the chosen operator
-		if (min_cost == kathan_join_cost) {
-			// Use PhysicalKathanJoin
-			plan = make_uniq<PhysicalKathanJoin>(
-				op, std::move(left), std::move(right), std::move(op.conditions), op.join_type, op.left_projection_map,
-				op.right_projection_map, op.estimated_cardinality);
-		} else if (min_cost == hash_join_cost) {
-			// Hash Join
-			 plan = make_uniq<PhysicalHashJoin>(
-				op, std::move(left), std::move(right), std::move(op.conditions), op.join_type, op.left_projection_map,
-				op.right_projection_map, std::move(op.mark_types), op.estimated_cardinality, std::move(op.filter_pushdown));
-		} else if (min_cost == ie_join_cost) {
-			// IE Join
-			plan = make_uniq<PhysicalIEJoin>(op, std::move(left), std::move(right), std::move(op.conditions), op.join_type,
-											op.estimated_cardinality);
-		} else if (min_cost == piecewise_merge_cost) {
-			// Piecewise Merge Join
-			plan = make_uniq<PhysicalPiecewiseMergeJoin>(op, std::move(left), std::move(right), std::move(op.conditions),
-														op.join_type, op.estimated_cardinality);
-		} else if (min_cost == nested_loop_cost) {
-			// Nested Loop Join
-			plan =  make_uniq<PhysicalNestedLoopJoin>(op, std::move(left), std::move(right), std::move(op.conditions),
-													op.join_type, op.estimated_cardinality);
-		} else {
-			// Blockwise NL Join
 			auto condition = JoinCondition::CreateExpression(std::move(op.conditions));
-			plan =  make_uniq<PhysicalBlockwiseNLJoin>(op, std::move(left), std::move(right), std::move(condition),
-													op.join_type, op.estimated_cardinality);
+			plan = make_uniq<PhysicalBlockwiseNLJoin>(op, std::move(left), std::move(right), std::move(condition),
+			                                          op.join_type, op.estimated_cardinality);
 		}
+	}
 	return plan;
 }
 

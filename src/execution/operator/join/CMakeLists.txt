@@ -1,6 +1,6 @@
 # Add the CUDA source file explicitly to distinguish it from the rest
 set(CUDA_SOURCES
-    physical_kathan_join.cu
+    physical_GPU_join.cu
 )
 
 # Add Unity Build for other files

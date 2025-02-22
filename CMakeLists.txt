@@ -44,7 +44,7 @@ find_package(CUDAToolkit REQUIRED)
 # Locate the CUDA runtime library (cudart)
 find_library(CUDART_LIBRARY 
     NAMES libcudart.so
-    PATHS /usr/lib/x86_64-linux-gnu
+    PATHS /usr/local/cuda-12.8/targets/x86_64-linux/lib/
     NO_DEFAULT_PATH
 )
 if (NOT CUDART_LIBRARY)
