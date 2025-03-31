@@ -8,6 +8,7 @@
 #include "duckdb/planner/expression/bound_reference_expression.hpp"
 
 #include "duckdb/execution/operator/scan/physical_column_data_scan.hpp"
+#include "duckdb/execution/operator/aggregate/physical_GPU_groupby.hpp"
 
 namespace duckdb {
 
@@ -56,10 +57,16 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::PlanDelimJoin(LogicalCompari
 		delim_join = make_uniq<PhysicalLeftDelimJoin>(op.types, std::move(plan), delim_scans, op.estimated_cardinality,
 		                                              optional_idx(this->delim_index));
 	}
+	auto estimatedCPUgroupbycost = 0;
+	auto estimatedGPUgroupbycost = 1000;
 	// we still have to create the DISTINCT clause that is used to generate the duplicate eliminated chunk
-	delim_join->distinct = make_uniq<PhysicalHashAggregate>(context, delim_types, std::move(distinct_expressions),
-	                                                        std::move(distinct_groups), op.estimated_cardinality);
-
+	if(estimatedCPUgroupbycost<estimatedGPUgroupbycost){
+		delim_join->distinct = make_uniq<PhysicalHashAggregate>(context, delim_types, std::move(distinct_expressions),
+		                                                        std::move(distinct_groups), op.estimated_cardinality);												
+	}
+	else{
+		// delim_join->distinct = make_uniq<PhysicalGPUGroupBy>(delim_types, std::move(distinct_groups), op.estimated_cardinality);
+	}
 	return std::move(delim_join);
 }
 

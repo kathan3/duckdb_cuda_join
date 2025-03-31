@@ -7,6 +7,7 @@
 #include "duckdb/planner/operator/logical_distinct.hpp"
 #include "duckdb/function/function_binder.hpp"
 #include "duckdb/optimizer/rule/ordered_aggregate_optimizer.hpp"
+#include "duckdb/execution/operator/aggregate/physical_GPU_groupby.hpp"
 
 namespace duckdb {
 
@@ -84,18 +85,33 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::CreatePlan(LogicalDistinct &
 
 	child = ExtractAggregateExpressions(std::move(child), aggregates, groups);
 
-	// we add a physical hash aggregation in the plan to select the distinct groups
-	auto groupby = make_uniq<PhysicalHashAggregate>(context, aggregate_types, std::move(aggregates), std::move(groups),
-	                                                child->estimated_cardinality);
-	groupby->children.push_back(std::move(child));
-	if (!requires_projection) {
-		return std::move(groupby);
-	}
-
-	// we add a physical projection on top of the aggregation to project all members in the select list
+	auto estimatedCPUgroupbycost = 0;
+	auto estimatedGPUgroupbycost = 1000;
+		if(estimatedCPUgroupbycost<estimatedGPUgroupbycost){
+			auto groupby = make_uniq<PhysicalHashAggregate>(context, aggregate_types, std::move(aggregates), std::move(groups),
+			child->estimated_cardinality);
+				groupby->children.push_back(std::move(child));
+				if (!requires_projection) {
+					return std::move(groupby);
+				}
+					// we add a physical projection on top of the aggregation to project all members in the select list
 	auto aggr_projection = make_uniq<PhysicalProjection>(types, std::move(projections), groupby->estimated_cardinality);
 	aggr_projection->children.push_back(std::move(groupby));
-	return std::move(aggr_projection);
+	return std::move(aggr_projection);										
+		}
+		else{
+			auto groupby = make_uniq<PhysicalGPUGroupBy>(aggregate_types, std::move(groups), child->estimated_cardinality);
+			groupby->children.push_back(std::move(child));
+			if (!requires_projection) {
+				return std::move(groupby);
+			}
+				// we add a physical projection on top of the aggregation to project all members in the select list
+	auto aggr_projection = make_uniq<PhysicalProjection>(types, std::move(projections), groupby->estimated_cardinality);
+	aggr_projection->children.push_back(std::move(groupby));
+	return std::move(aggr_projection);	
+		}
+	
+
 }
 
 } // namespace duckdb

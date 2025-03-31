@@ -286,7 +286,7 @@ bool CachingPhysicalOperator::CanCacheType(const LogicalType &type) {
 CachingPhysicalOperator::CachingPhysicalOperator(PhysicalOperatorType type, vector<LogicalType> types_p,
                                                  idx_t estimated_cardinality)
     : PhysicalOperator(type, std::move(types_p), estimated_cardinality) {
-
+	
 	caching_supported = true;
 	for (auto &col_type : types) {
 		if (!CanCacheType(col_type)) {
@@ -295,7 +295,8 @@ CachingPhysicalOperator::CachingPhysicalOperator(PhysicalOperatorType type, vect
 		}
 	}
 }
-
+// DataChunk probe_chunk;
+// int kite=1;
 OperatorResultType CachingPhysicalOperator::Execute(ExecutionContext &context, DataChunk &input, DataChunk &chunk,
                                                     GlobalOperatorState &gstate, OperatorState &state_p) const {
 	auto &state = state_p.Cast<CachingOperatorState>();
@@ -308,6 +309,17 @@ OperatorResultType CachingPhysicalOperator::Execute(ExecutionContext &context, D
 	// }
 	// chunk.Print();
 	// Execute child operator
+	// if(kite==1){
+	// 	probe_chunk.Initialize(Allocator::Get(context.client), input.GetTypes());
+	// 	kite--;
+	// }
+	// if(input.size()>0) {
+	// 	probe_chunk.Append(input,true);
+	// 	return OperatorResultType::NEED_MORE_INPUT;
+	// }
+	// else{
+	// 	probe_chunk.Append(input,true);
+	// }
 	auto child_result = ExecuteInternal(context, input, chunk, gstate, state);
 	// chunk.Print();
 	#if STANDARD_VECTOR_SIZE >= 128

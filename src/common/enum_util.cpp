@@ -2685,6 +2685,7 @@ const StringUtil::EnumStringLiteral *GetPhysicalOperatorTypeValues() {
 		{ static_cast<uint32_t>(PhysicalOperatorType::UNNEST), "UNNEST" },
 		{ static_cast<uint32_t>(PhysicalOperatorType::UNGROUPED_AGGREGATE), "UNGROUPED_AGGREGATE" },
 		{ static_cast<uint32_t>(PhysicalOperatorType::HASH_GROUP_BY), "HASH_GROUP_BY" },
+	    { static_cast<uint32_t>(PhysicalOperatorType::GPU_GROUP_BY), "GPU_GROUP_BY" },
 		{ static_cast<uint32_t>(PhysicalOperatorType::PERFECT_HASH_GROUP_BY), "PERFECT_HASH_GROUP_BY" },
 		{ static_cast<uint32_t>(PhysicalOperatorType::PARTITIONED_AGGREGATE), "PARTITIONED_AGGREGATE" },
 		{ static_cast<uint32_t>(PhysicalOperatorType::FILTER), "FILTER" },

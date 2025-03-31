@@ -13,6 +13,7 @@
 #include "duckdb/planner/expression/bound_aggregate_expression.hpp"
 #include "duckdb/planner/expression/bound_reference_expression.hpp"
 #include "duckdb/planner/operator/logical_aggregate.hpp"
+#include "duckdb/execution/operator/aggregate/physical_GPU_groupby.hpp"
 
 namespace duckdb {
 
@@ -257,8 +258,15 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::CreatePlan(LogicalAggregate 
 			groupby = make_uniq_base<PhysicalOperator, PhysicalUngroupedAggregate>(op.types, std::move(op.expressions),
 			                                                                       op.estimated_cardinality);
 		} else {
-			groupby = make_uniq_base<PhysicalOperator, PhysicalHashAggregate>(
-			    context, op.types, std::move(op.expressions), op.estimated_cardinality);
+			auto estimatedCPUgroupbycost = 1000;
+			auto estimatedGPUgroupbycost = 0;
+			if(estimatedCPUgroupbycost<estimatedGPUgroupbycost){
+				groupby = make_uniq_base<PhysicalOperator, PhysicalHashAggregate>(
+				    context, op.types, std::move(op.expressions), op.estimated_cardinality);
+			}
+			else{
+				// groupby = make_uniq_base<PhysicalOperator, PhysicalGPUGroupBy>(op.types, op.estimated_cardinality);
+			}
 		}
 	} else {
 		// groups! create a GROUP BY aggregator
@@ -270,13 +278,29 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::CreatePlan(LogicalAggregate 
 			    context, op.types, std::move(op.expressions), std::move(op.groups), std::move(partition_columns),
 			    op.estimated_cardinality);
 		} else if (CanUsePerfectHashAggregate(context, op, required_bits)) {
-			groupby = make_uniq_base<PhysicalOperator, PhysicalPerfectHashAggregate>(
-			    context, op.types, std::move(op.expressions), std::move(op.groups), std::move(op.group_stats),
-			    std::move(required_bits), op.estimated_cardinality);
+			auto estimatedCPUgroupbycost = 1000;
+			auto estimatedGPUgroupbycost = 0;
+			if(estimatedCPUgroupbycost<estimatedGPUgroupbycost){
+				groupby = make_uniq_base<PhysicalOperator, PhysicalPerfectHashAggregate>(
+					context, op.types, std::move(op.expressions), std::move(op.groups), std::move(op.group_stats),
+					std::move(required_bits), op.estimated_cardinality);
+			}
+			else{
+				groupby = make_uniq_base<PhysicalOperator, PhysicalGPUGroupBy>(op.types, std::move(op.groups), op.estimated_cardinality);
+			}
 		} else {
-			groupby = make_uniq_base<PhysicalOperator, PhysicalHashAggregate>(
-			    context, op.types, std::move(op.expressions), std::move(op.groups), std::move(op.grouping_sets),
-			    std::move(op.grouping_functions), op.estimated_cardinality);
+			auto estimatedCPUgroupbycost = 1000;
+			auto estimatedGPUgroupbycost = 0;
+			if(estimatedCPUgroupbycost<estimatedGPUgroupbycost){
+				groupby = make_uniq_base<PhysicalOperator, PhysicalHashAggregate>(
+					context, op.types, std::move(op.expressions), std::move(op.groups), std::move(op.grouping_sets),
+					std::move(op.grouping_functions), op.estimated_cardinality);
+			}
+			else{
+				groupby = make_uniq_base<PhysicalOperator, PhysicalGPUGroupBy>(
+					op.types, std::move(op.groups), op.estimated_cardinality);
+			}
+			
 		}
 	}
 	groupby->children.push_back(std::move(plan));

@@ -124,6 +124,7 @@ PhysicalHashAggregate::PhysicalHashAggregate(ClientContext &context, vector<Logi
     : PhysicalOperator(PhysicalOperatorType::HASH_GROUP_BY, std::move(types), estimated_cardinality),
       grouping_sets(std::move(grouping_sets_p)) {
 	// get a list of all aggregates to be computed
+	printf("PhysicalHashAggregate::PhysicalHashAggregate");
 	const idx_t group_count = groups_p.size();
 	if (grouping_sets.empty()) {
 		GroupingSet set;

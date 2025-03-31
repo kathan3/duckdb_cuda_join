@@ -7,6 +7,8 @@
 #include "duckdb/planner/expression/bound_reference_expression.hpp"
 #include "duckdb/planner/expression/bound_window_expression.hpp"
 #include "duckdb/planner/operator/logical_set_operation.hpp"
+#include "duckdb/execution/operator/aggregate/physical_GPU_groupby.hpp"
+
 
 namespace duckdb {
 
@@ -110,10 +112,20 @@ unique_ptr<PhysicalOperator> PhysicalPlanGenerator::CreatePlan(LogicalSetOperati
 		for (idx_t i = 0; i < types.size(); i++) {
 			groups.push_back(make_uniq<BoundReferenceExpression>(types[i], i));
 		}
-		auto groupby = make_uniq<PhysicalHashAggregate>(context, op.types, std::move(aggregates), std::move(groups),
-		                                                result->estimated_cardinality);
-		groupby->children.push_back(std::move(result));
-		result = std::move(groupby);
+		auto estimatedCPUgroupbycost = 0;
+		auto estimatedGPUgroupbycost = 10000;
+		if(estimatedCPUgroupbycost<estimatedGPUgroupbycost){
+			auto groupby = make_uniq<PhysicalHashAggregate>(context, op.types, std::move(aggregates), std::move(groups),
+			                                                result->estimated_cardinality);
+				groupby->children.push_back(std::move(result));
+				result = std::move(groupby);												
+		}
+		else{
+			auto groupby = make_uniq<PhysicalGPUGroupBy>(op.types, std::move(groups), result->estimated_cardinality);
+			groupby->children.push_back(std::move(result));
+			result = std::move(groupby);
+		}
+
 	}
 
 	D_ASSERT(result);

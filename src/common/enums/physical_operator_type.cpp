@@ -39,6 +39,8 @@ string PhysicalOperatorToString(PhysicalOperatorType type) {
 		return "UNGROUPED_AGGREGATE";
 	case PhysicalOperatorType::HASH_GROUP_BY:
 		return "HASH_GROUP_BY";
+	case PhysicalOperatorType::GPU_GROUP_BY:
+		return "GPU_GROUP_BY";	
 	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
 		return "PERFECT_HASH_GROUP_BY";
 	case PhysicalOperatorType::PARTITIONED_AGGREGATE:
