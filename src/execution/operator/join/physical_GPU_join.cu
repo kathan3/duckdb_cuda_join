@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// physical_kathan_join.cu  –  GPU hash-join with BIGINT *or* VARCHAR keys
+// physical_GPU_join.cu  –  GPU hash-join with BIGINT *or* VARCHAR keys
 //                             (timed version)
 //===----------------------------------------------------------------------===//
 #include "duckdb/execution/operator/join/physical_GPU_join.hpp"
